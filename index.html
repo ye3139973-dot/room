@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绮捐嚧灏忔埧闂?路 鏉愯川棰勮</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #111; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; overflow: hidden; }
+        canvas { display: block; }
+
+        #info {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            color: #fff; background: rgba(0,0,0,0.7); padding: 10px 28px;
+            border-radius: 24px; font-size: 15px; backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.08); z-index: 10;
+            pointer-events: none; user-select: none; white-space: nowrap;
+        }
+
+        #controls {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 12px; z-index: 10; align-items: center;
+        }
+        .btn {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+            color: #fff; padding: 8px 18px; border-radius: 20px;
+            cursor: pointer; font-size: 13px; backdrop-filter: blur(8px);
+            transition: all 0.2s; user-select: none;
+        }
+        .btn:hover { background: rgba(255,255,255,0.2); }
+        .btn.active { background: rgba(255,255,255,0.25); border-color: #fff; }
+
+        #loading {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            color: rgba(255,255,255,0.6); font-size: 14px; z-index: 5;
+            text-align: center;
+        }
+        #loading .spinner {
+            width: 32px; height: 32px; margin: 0 auto 12px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #fff; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div>鍔犺浇妯″瀷涓?..</div>
+<div id="info">馃彔 绮捐嚧灏忔埧闂?路 鏉愯川棰勮</div>
+<div id="controls">
+    <span class="btn" id="btnReset">馃幆 閲嶇疆瑙嗚</span>
+    <span class="btn" id="btnWire">馃敳 绾挎</span>
+    <span class="btn" id="btnAuto">馃攧 鑷姩鏃嬭浆</span>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 50);
+camera.position.set(5, 4, 6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+// 鎺у埗鍣?const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.5, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 1.5;
+controls.maxDistance = 20;
+controls.update();
+
+// ===== 浼樿川鏉愯川棰勮鐏厜 =====
+// 鐜鍏?scene.add(new THREE.AmbientLight(0x404060, 0.5));
+
+// 涓诲厜 - 鏆栬壊
+const main = new THREE.DirectionalLight(0xffeedd, 2.0);
+main.position.set(5, 10, 5);
+main.castShadow = true;
+main.shadow.mapSize.width = 2048;
+main.shadow.mapSize.height = 2048;
+scene.add(main);
+
+// 杈呭厜 - 鍐疯壊
+const fill = new THREE.DirectionalLight(0x8888ff, 0.8);
+fill.position.set(-3, 2, -4);
+scene.add(fill);
+
+// 鑳屽厜
+const rim = new THREE.DirectionalLight(0xffffff, 0.6);
+rim.position.set(-4, 3, 5);
+scene.add(rim);
+
+// 搴曞厜
+const bottom = new THREE.DirectionalLight(0x4488ff, 0.3);
+bottom.position.set(0, -1, 0);
+scene.add(bottom);
+
+// 椤堕儴琛ュ厜
+const topLight = new THREE.PointLight(0xffffff, 0.5);
+topLight.position.set(0, 6, 0);
+scene.add(topLight);
+
+// ===== 鍗婄悆鐜鍏?=====
+const hemi = new THREE.HemisphereLight(0x8899cc, 0x443322, 0.6);
+scene.add(hemi);
+
+// ===== 鍔犺浇妯″瀷 =====
+const loader = new GLTFLoader();
+let model = null;
+let autoRotate = false;
+let wireframeMode = false;
+
+loader.load(
+    './room_preview.glb',
+    (gltf) => {
+        model = gltf.scene;
+        
+        model.traverse((node) => {
+            if (node.isMesh) {
+                node.castShadow = true;
+                node.receiveShadow = true;
+                // 鏉愯川浼樺寲
+                if (node.material) {
+                    if (Array.isArray(node.material)) {
+                        node.material.forEach(m => {
+                            m.roughness = Math.min(m.roughness || 0.5, 0.8);
+                            m.metalness = m.metalness || 0;
+                        });
+                    } else {
+                        node.material.roughness = Math.min(node.material.roughness || 0.5, 0.8);
+                    }
+                }
+            }
+        });
+
+        // 灞呬腑
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3()).length();
+        const center = box.getCenter(new THREE.Vector3());
+        controls.target.copy(center);
+        
+        const dist = size * 1.5;
+        camera.position.set(center.x + dist * 0.6, center.y + dist * 0.5, center.z + dist * 0.8);
+        controls.update();
+
+        scene.add(model);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('info').textContent = '馃彔 绮捐嚧灏忔埧闂?路 鏉愯川棰勮 鉁?;
+    },
+    (xhr) => {
+        if (xhr.total) {
+            const pct = Math.round(xhr.loaded / xhr.total * 100);
+            document.querySelector('#loading').innerHTML = 
+                `<div class="spinner"></div>鍔犺浇涓?${pct}%`;
+        }
+    },
+    (err) => {
+        console.error('鍔犺浇澶辫触:', err);
+        document.getElementById('loading').innerHTML = '鉂?鍔犺浇澶辫触';
+        document.getElementById('info').textContent = '鉂?鍔犺浇澶辫触';
+    }
+);
+
+// ===== 鎸夐挳浜嬩欢 =====
+document.getElementById('btnReset').onclick = () => {
+    if (model) {
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3()).length();
+        const center = box.getCenter(new THREE.Vector3());
+        controls.target.copy(center);
+        camera.position.set(center.x + size * 0.6, center.y + size * 0.5, center.z + size * 0.8);
+        controls.update();
+    }
+};
+
+document.getElementById('btnWire').onclick = function() {
+    wireframeMode = !wireframeMode;
+    this.classList.toggle('active');
+    if (model) {
+        model.traverse((node) => {
+            if (node.isMesh && node.material) {
+                if (Array.isArray(node.material)) {
+                    node.material.forEach(m => m.wireframe = wireframeMode);
+                } else {
+                    node.material.wireframe = wireframeMode;
+                }
+            }
+        });
+    }
+};
+
+document.getElementById('btnAuto').onclick = function() {
+    autoRotate = !autoRotate;
+    this.classList.toggle('active');
+    controls.autoRotate = autoRotate;
+    controls.autoRotateSpeed = 1.5;
+};
+
+// ===== 绐楀彛鑷€傚簲 =====
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ===== 鍔ㄧ敾寰幆 =====
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
